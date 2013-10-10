@@ -1,35 +1,57 @@
 #!/usr/bin/perl
-use Text::Levenshtein qw(distance);
 
+
+#
+# Used to generate the queries.out file for analysis. 
+# Reads clicks.out (output of clicks.pl) and solr.out (output of LogAligner)
+#
+#
+# For each unique session, find each unique query and print the following:
+#   session     combination of session + ipaddr
+#   querynum    index of query in session 
+#   query       query string
+#   numfound    number of results found
+#   pages       number of pages viewed
+#   duration    duration
+#   clicks      number of clicks
+#   terms       number of terms in query
+#   phrases     number of phrases in query
+#   boolop      number of boolean operators
+#   expr        number of compress expressions
+#   wild        number of wildcards
+#   topic       topic facet present (0/1)
+#   author      author facet present (0/1)
+#   language    language facet present (0/1)
+#   country     country facet present (0/1)
+#   pubdate     pubdate facet present (0/1)
+#   pubtrie     pubtrie facet present (0/1)
+#   format      format facet present (0/1)
+#   htsource    source facet present (0/1)
+#   lmt         ft limiter present (0/1)
+#   incommon    number of terms in common with previous query in session
+#   newquery    0/1 is new query in session (incommon = 0)
+#   tophrase    this query is same as previous query, just converted to phrase query
+#   rmphrase    quotes removed from previous query
+#   addterms    terms were added to previous query
+#   rmterms     terms were removed from previous query
+#   editdist    edit distance (levenstein) from previous query
+#   addop       operator was added to previous query
+#   addfacet    facets added to previous query
+#   rmfacet     facets removed from previous query  
+#   addft       ft limiter enabled from previous query
+#   rmft        ft limiter removed from previous query
+#
+# A session is defined as:
+#    $session = "$ipaddr $session";
+# 
+# A unique query is defined as:
+#    $querystr = "$query|$topic|$author|$language|$country|$pubdate|$pubtrie|$format|$htsource|$lmt|$field1";
+
+use Text::Levenshtein qw(distance);
 use Digest::MD5 qw( md5);
 use Time::Local;
 use utf8;
 
-#ipaddr|session|pn|timestamp|numfound|q1|topicStr|authorStr|language|countryOfPubStr|publishDateRange|publishDateTrie|format|htsource|lmt|clicks|query_id
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|1|1325439018|19065|pasajeros transportados|||||||||all|0|367514
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|1|1325439059|902|pasajeros transportados|||||1910-1919||||all|0|367515
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|1|1325439126|4681|tranvía pasajeros transportados|||||||||all|0|367516
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|1|1325439199|329|tranvía pasajeros transportados|||||1910-1919||||all|1|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|1|1325439337|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367518
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|2|1325439382|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|3|1325439426|329|tranvía pasajeros transportados|||||1910-1919||||all|1|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|3|1325439665|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|4|1325439701|329|tranvía pasajeros transportados|||||1910-1919||||all|1|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|4|1325439996|329|tranvía pasajeros transportados|||||1910-1919||||all|1|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|4|1325440296|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|5|1325440325|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|6|1325440368|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|7|1325440424|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|8|1325440465|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|9|1325440502|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|10|1325440523|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|11|1325440559|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|12|1325440585|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|13|1325440617|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|14|1325441126|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|4|1325441174|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|3|1325441188|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
-#60cd2fb473b9320f96746bdecbe5d137|47a5d60479b80b11798a4d0147ecfefd|2|1325441196|329|tranvía pasajeros transportados|||||1910-1919||||all|0|367517
 
 my $queryNum = 0;
 my %lastSession;

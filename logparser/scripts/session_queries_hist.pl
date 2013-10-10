@@ -1,5 +1,9 @@
 #!/usr/bin/perl
 
+#
+# Prints simple histogram
+#
+
 my %hist;
 $total = 0;
 while (<>) {
