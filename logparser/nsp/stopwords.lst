@@ -1,0 +1,19 @@
+ @stop.mode=OR
+/^of$/
+/^de$/
+/^la$/
+/^or$/
+/^the$/
+/^in$/
+/^and$/
+/^the$/
+/^de $/
+/^ka$/
+/^to$/
+/^the$/
+/^on$/
+/^st$/
+/^for$/
+/^dr$/
+/^by$/
+/^[a-z.,]$/
